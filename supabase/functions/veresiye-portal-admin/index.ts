@@ -156,15 +156,15 @@ Deno.serve(async (request: Request) => {
       const [{ data: customers, error: customerError }, { data: accessRows, error: accessError }, { data: sales, error: salesError }] = await Promise.all([
         db.from('customers').select('id,name,phone,balance,created_at').eq('business_id', businessId).order('name', { ascending: true }).limit(2000),
         db.from('veresiye_portal_access').select('customer_id,is_active,last_login_at').eq('business_id', businessId),
-        db.from('sales').select('customer_id,customer_name,created_at').eq('business_id', businessId).is('deleted_at', null).in('payment_method', ['credit', 'split']).order('created_at', { ascending: false }).limit(5000),
+        db.from('sales').select('customer_id,created_at').eq('business_id', businessId).is('deleted_at', null).not('customer_id', 'is', null).in('payment_method', ['credit', 'split']).order('created_at', { ascending: false }).limit(5000),
       ]);
       if (customerError || accessError || salesError) throw new Error('Müşteri listesi okunamadı.');
       const accessByCustomer = new Map((accessRows || []).map((row: any) => [row.customer_id, row]));
       const lastSaleByCustomer = new Map<string, string>();
-      const nameToId = new Map((customers || []).map((row: any) => [String(row.name).trim().toLocaleLowerCase('tr'), row.id]));
       for (const sale of sales || []) {
-        const customerId = sale.customer_id || nameToId.get(String(sale.customer_name || '').trim().toLocaleLowerCase('tr'));
-        if (customerId && !lastSaleByCustomer.has(customerId)) lastSaleByCustomer.set(customerId, sale.created_at);
+        if (sale.customer_id && !lastSaleByCustomer.has(sale.customer_id)) {
+          lastSaleByCustomer.set(sale.customer_id, sale.created_at);
+        }
       }
       return jsonResponse({ success: true, customers: (customers || []).map((customer: any) => {
         const access = accessByCustomer.get(customer.id) as any;
