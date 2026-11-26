@@ -14,6 +14,9 @@ assert.match(login, /hmacHex\('customer-access-code', code\)/, 'customer access 
 assert.match(login, /\.eq\('is_active', true\)/, 'disabled customer access must be rejected');
 assert.match(login, /veresiye_portal_register_login_attempt/, 'public code login must remain rate limited in the database');
 assert.match(login, /p_ip_hash: ipHash/, 'login throttling must include a server-observed IP fingerprint');
+assert.match(login, /\.eq\('customer_id', customer\.id\)/, 'customer history must be scoped to the authenticated customer ID');
+assert.doesNotMatch(login, /byLegacyName|\.eq\('customer_name', customer\.name\)|\.is\('customer_id', null\)/, 'customer history must never be inferred from names');
+assert.doesNotMatch(admin, /nameToId|sale\.customer_name/, 'admin last-activity hints must not use name-only customer matching');
 assert.match(login, /signCustomerSessionToken/, 'remembered customer login must use a signed token');
 assert.match(login, /verifyCustomerSessionToken/, 'remembered sessions must be validated server-side');
 assert.doesNotMatch(login, /hasTrustedPortalProxy|VERESIYE_PROXY_SHARED_SECRET/, 'public code login must not require an unset proxy secret');
