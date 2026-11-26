@@ -44,6 +44,7 @@ Deno.serve(async (request: Request) => {
     const body = await request.json() as { code?: string; session_token?: string };
     const code = String(body.code || '').trim();
     const sessionToken = String(body.session_token || '').trim();
+    if (sessionToken.length > 4096) return jsonResponse({ success: false, message: invalidLogin }, 401);
     if (!sessionToken && !/^\d{6}$/.test(code)) return jsonResponse({ success: false, message: invalidLogin }, 401);
 
     const db = adminClient();
@@ -114,18 +115,18 @@ Deno.serve(async (request: Request) => {
       .maybeSingle();
     if (customerError || !customer) return jsonResponse({ success: false, message: invalidLogin }, 401);
 
-    const [byId, byLegacyName] = await Promise.all([
-      db.from('sales').select('id,total,refund_amount,created_at,payment_method,customer_id,customer_name,deleted_at')
-        .eq('business_id', businessId).eq('customer_id', customer.id).in('payment_method', ['credit', 'split'])
-        .is('deleted_at', null).order('created_at', { ascending: false }).limit(1000),
-      db.from('sales').select('id,total,refund_amount,created_at,payment_method,customer_id,customer_name,deleted_at')
-        .eq('business_id', businessId).eq('customer_name', customer.name).is('customer_id', null).in('payment_method', ['credit', 'split'])
-        .is('deleted_at', null).order('created_at', { ascending: false }).limit(1000),
-    ]);
-    if (byId.error || byLegacyName.error) throw new Error('Alışveriş geçmişi okunamadı.');
-    const uniqueSales = new Map<string, any>();
-    for (const sale of [...(byId.data || []), ...(byLegacyName.data || [])]) uniqueSales.set(sale.id, sale);
-    const candidateSales = [...uniqueSales.values()].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 1000);
+    // Purchase history is bound strictly to customer_id. Never infer ownership
+    // from a display name: names can collide or be reused after a customer is deleted.
+    const { data: linkedSales, error: linkedSalesError } = await db.from('sales')
+      .select('id,total,refund_amount,created_at,payment_method')
+      .eq('business_id', businessId)
+      .eq('customer_id', customer.id)
+      .in('payment_method', ['credit', 'split'])
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false })
+      .limit(1000);
+    if (linkedSalesError) throw new Error('Alışveriş geçmişi okunamadı.');
+    const candidateSales = linkedSales || [];
 
     const splitIds = candidateSales.filter((sale) => sale.payment_method === 'split').map((sale) => sale.id);
     let splitCreditIds = new Set<string>();
