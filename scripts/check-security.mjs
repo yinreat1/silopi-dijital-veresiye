@@ -52,7 +52,9 @@ if (!/hmacHex\('customer-access-code', code\)/.test(loginFunction)) failures.pus
 if (!/veresiye_portal_register_login_attempt/.test(loginFunction) || !/x-veresiye-client-ip/.test(loginFunction) || !/x-veresiye-client-ip/.test(adminFunction)) {
   failures.push('Portal login rate limiting must use the server-forwarded client IP.');
 }
-if (!/\.is\('customer_id', null\)/.test(loginFunction)) failures.push('Legacy name matching must not merge purchases linked to a different customer ID.');
+if (!/\.eq\('customer_id', customer\.id\)/.test(loginFunction) || /byLegacyName|nameToId|\.is\('customer_id', null\)/.test(loginFunction + adminFunction)) {
+  failures.push('Customer history and activity must use an exact customer_id; name-only matching is forbidden.');
+}
 if (/customer_payments/.test(loginFunction)) failures.push('Customer payment movements must never be sent to the portal.');
 if (!/\.eq\('business_id', businessId\)/.test(loginFunction + adminFunction)) failures.push('ProPOS reads must be scoped to the Ferhat Büfe business.');
 if (!/verify_staff_pin/.test(adminFunction) || !/\.eq\('role', 'admin'\)/.test(adminFunction)) failures.push('Admin actions must verify an active ProPOS admin PIN and admin role.');
